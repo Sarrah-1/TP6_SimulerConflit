@@ -35,7 +35,8 @@ reservation-locking
         └── OptimisticLockingTest
 ```
 
-![Structure du projet](captures/00-structure.png)
+<img width="338" height="440" alt="forma4" src="https://github.com/user-attachments/assets/6dcd5e29-73a3-47fa-a454-83934216fa01" />
+
 
 ## 4. Ce qu'on a fait
 
@@ -66,21 +67,19 @@ Deux « utilisateurs » chargent la même réservation (version 0) :
 | 3 | Transaction 1 passe la salle à `Salle B` | succès, version = 1 |
 | 4 | Transaction 2 passe la salle à `Salle C` avec la version 0 | **conflit** : `OptimisticLockException` |
 
-Hibernate ajoute la version dans la clause `where` du `UPDATE` :
+Lors de chaque mise à jour, Hibernate vérifie que la version en base est toujours celle qui a été lue. Pour la transaction 1, la version en base est bien 0 : la modification réussit et la version passe à 1. Pour la transaction 2, la version 0 n'existe plus en base : aucune ligne n'est modifiée, et Hibernate lève l'exception.
 
-```sql
-update reservations set salle=?, dateDebut=?, dateFin=?, version=? where id=? and version=?
-```
+Au final, la modification de la transaction 1 n'est pas écrasée : la réservation reste en `Salle B`, version 1.
 
-Pour la transaction 2, la version 0 n'existe plus en base : aucune ligne n'est modifiée, et Hibernate lève l'exception.
+<img width="773" height="140" alt="forma1" src="https://github.com/user-attachments/assets/f556c817-d32b-466e-8450-cb192d1b61ca" />
 
-![Résultat du conflit](captures/01-conflit.png)
 
 ## 6. Gestion du conflit avec retry
 
 `ReservationRetryHandler.modifierAvecRetry` applique la modification. En cas de conflit, il recharge la dernière version depuis la base, réapplique la même modification et réessaie (3 tentatives au maximum). La transaction 2 réussit alors au deuxième essai : la salle devient `Salle C` et la version passe à 2.
 
-![Résultat avec retry](captures/02-retry.png)
+<img width="733" height="117" alt="forma2" src="https://github.com/user-attachments/assets/8665072f-fb51-4fc6-8120-ffa7db8d0dc9" />
+
 
 ## 7. Tests JUnit
 
@@ -90,7 +89,8 @@ Pour la transaction 2, la version 0 n'existe plus en base : aucune ligne n'est m
 - une version périmée provoque une `OptimisticLockException`, sans écraser la modification de la transaction 1 ;
 - le retry réussit après un conflit.
 
-![Tests JUnit réussis](captures/03-tests-junit.png)
+<img width="505" height="219" alt="forma3" src="https://github.com/user-attachments/assets/c45f8c51-0901-4e9d-bf7b-d9849c31b5a9" />
+
 
 ## 8. Remarque sur le code du TP
 
@@ -100,7 +100,7 @@ Dans `modifierReservation`, l'énoncé fait un `em.find(...)` puis recopie les c
 
 - Le verrouillage optimiste suppose que les conflits sont rares : il ne bloque aucune ligne.
 - Chaque mise à jour incrémente le champ `@Version`.
-- Au moment de l'écriture, Hibernate vérifie que la version en base est celle qui a été lue. Sinon, une autre transaction est passée avant, et une `OptimisticLockException` est levée.
+- Au moment de l'écriture, Hibernate vérifie que la version en base est celle qui a été lue. Sinon, une autre transaction est passée avant, aucune ligne n'est modifiée et une `OptimisticLockException` est levée.
 - Avantages : bonne scalabilité, pas de blocage ni de deadlock.
 - Limite : le conflit est détecté après coup, il faut donc le gérer (retry ou message à l'utilisateur).
 
